@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN docker-php-ext-configure pgsql --with-pgsql=/usr/local/pgsql \
     && docker-php-ext-install -j$(nproc) \
-       exif pgsql pdo pdo_pgsql opcache xsl gd zip intl
+    exif pgsql pdo pdo_pgsql opcache xsl gd zip intl
 
 COPY <<EOF /usr/local/etc/php-fpm.d/www.conf.template
 [www]
@@ -51,19 +51,6 @@ FROM base AS dev
 RUN pecl install xdebug \
     && docker-php-ext-enable xdebug
 
-COPY <<EOF /usr/local/etc/php/conf.d/app.ini
-display_errors = On
-error_reporting = E_ALL
-opcache.enable = 0
-EOF
-
-COPY <<EOF /usr/local/etc/php/conf.d/xdebug.ini
-xdebug.mode = debug
-xdebug.start_with_request = yes
-xdebug.client_host = host.docker.internal
-xdebug.client_port = 9003
-EOF
-
 ENV PHP_FPM_PM_MAX_CHILDREN=5 \
     PHP_FPM_PM_START_SERVERS=2 \
     PHP_FPM_PM_MIN_SPARE_SERVERS=1 \
@@ -72,13 +59,6 @@ ENV PHP_FPM_PM_MAX_CHILDREN=5 \
 
 # ── STAGE 3: production ───────────────────────────────────
 FROM base AS prod
-
-COPY <<EOF /usr/local/etc/php/conf.d/app.ini
-display_errors = Off
-opcache.enable = 1
-opcache.memory_consumption = 256
-opcache.validate_timestamps = 0
-EOF
 
 ENV PHP_FPM_PM_MAX_CHILDREN=20 \
     PHP_FPM_PM_START_SERVERS=5 \
