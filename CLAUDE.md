@@ -1,3 +1,14 @@
+## Codebase Navigation — MANDATORY
+
+NEVER use grep, find, cat, ls, or Read to explore code.
+NO EXCEPTIONS. Not even "just a quick check".
+
+Use ONLY token-savior tools:
+- find_symbol → locate any symbol
+- get_function_source → read a function
+- search_codebase → search across files
+- get_change_impact → understand dependencies
+
 # Project context
 
 Docker image definitions for production and local use. Images are pushed to GHCR via GitHub Actions on git tag push.
