@@ -5,14 +5,18 @@ FROM php:8.2-fpm-alpine3.24 AS base
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/bin/composer
 
-# pdo_pgsql is a core extension → docker-php-ext-install (PIE handles only
-# third-party extensions). Keep libpq at runtime, libpq-dev only to build.
+# pdo_pgsql and intl are core extensions → docker-php-ext-install (PIE handles
+# only third-party extensions). Keep the runtime libs (libpq, icu-libs); the
+# -dev packages are only needed to compile and are dropped afterwards.
 RUN apk add --no-cache \
         libpq \
+        icu-libs \
     && apk add --no-cache --virtual .build-deps \
         libpq-dev \
+        icu-dev \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql \
+        intl \
     && apk del .build-deps
 
 RUN apk add --no-cache \
