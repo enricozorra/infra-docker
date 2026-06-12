@@ -39,7 +39,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push ${{ matrix.php }}
+      - name: Build and push prod ${{ matrix.php }}
         uses: docker/build-push-action@v6
         with:
           context: php/${{ matrix.php }}
@@ -49,3 +49,14 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ matrix.php }}-${{ steps.version.outputs.value }}
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ matrix.php }}
+
+      - name: Build and push dev ${{ matrix.php }}
+        uses: docker/build-push-action@v6
+        with:
+          context: php/${{ matrix.php }}
+          target: dev
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ matrix.php }}-${{ steps.version.outputs.value }}-dev
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ matrix.php }}-dev

@@ -1,41 +1,25 @@
 # syntax=docker/dockerfile:1
 
 # ── STAGE 1: base ─────────────────────────────────────────
-FROM php:8.5-fpm AS base
+FROM php:8.5-fpm-alpine3.24 AS base
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/bin/composer
 
-RUN apt-get update && apt-get install -y \
-    zlib1g-dev libpq-dev \
-    libxslt-dev libpng-dev libicu-dev git \
-    zip libzip-dev gettext-base curl ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# pdo_pgsql is a core extension → docker-php-ext-install (PIE handles only
+# third-party extensions). Keep libpq at runtime, libpq-dev only to build.
+RUN apk add --no-cache \
+        libpq \
+    && apk add --no-cache --virtual .build-deps \
+        libpq-dev \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_pgsql \
+    && apk del .build-deps
 
-RUN docker-php-ext-install -j$(nproc) \
-    exif pgsql pdo pdo_pgsql xsl gd zip intl
+RUN apk add --no-cache \
+        envsubst
 
-COPY <<EOF /usr/local/etc/php-fpm.d/www.conf.template
-[www]
-user = www-data
-group = www-data
-listen = 9000
-
-pm = dynamic
-pm.max_children      = \${PHP_FPM_PM_MAX_CHILDREN}
-pm.start_servers     = \${PHP_FPM_PM_START_SERVERS}
-pm.min_spare_servers = \${PHP_FPM_PM_MIN_SPARE_SERVERS}
-pm.max_spare_servers = \${PHP_FPM_PM_MAX_SPARE_SERVERS}
-pm.max_requests      = \${PHP_FPM_PM_MAX_REQUESTS}
-EOF
-
-COPY <<EOF /usr/local/bin/docker-entrypoint.sh
-#!/bin/sh
-set -e
-envsubst < /usr/local/etc/php-fpm.d/www.conf.template > /usr/local/etc/php-fpm.d/www.conf
-exec docker-php-entrypoint "\$@"
-EOF
+COPY www.conf.template /usr/local/etc/php-fpm.d/www.conf.template
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 9000
@@ -45,22 +29,25 @@ CMD ["php-fpm"]
 # ── STAGE 2: development ──────────────────────────────────
 FROM base AS dev
 
-RUN pecl install xdebug \
-    && docker-php-ext-enable xdebug
+# install node and npm
+RUN apk add --no-cache \
+        nodejs \
+        npm
 
-COPY <<EOF /usr/local/etc/php/conf.d/app.ini
-display_errors = On
-error_reporting = E_ALL
-opcache.enable = 0
-EOF
+# install xdebug with PIE
+RUN apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        linux-headers \
+        git \
+    && wget -qO /usr/local/bin/pie https://github.com/php/pie/releases/latest/download/pie.phar \
+    && chmod +x /usr/local/bin/pie \
+    && pie install xdebug/xdebug \
+    && apk del .build-deps
 
-COPY <<EOF /usr/local/etc/php/conf.d/xdebug.ini
-xdebug.mode = debug
-xdebug.start_with_request = yes
-xdebug.client_host = host.docker.internal
-xdebug.client_port = 9003
-EOF
+COPY app.dev.ini /usr/local/etc/php/conf.d/app.ini
+COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
+# env default values
 ENV PHP_FPM_PM_MAX_CHILDREN=5 \
     PHP_FPM_PM_START_SERVERS=2 \
     PHP_FPM_PM_MIN_SPARE_SERVERS=1 \
@@ -70,12 +57,7 @@ ENV PHP_FPM_PM_MAX_CHILDREN=5 \
 # ── STAGE 3: production ───────────────────────────────────
 FROM base AS prod
 
-COPY <<EOF /usr/local/etc/php/conf.d/app.ini
-display_errors = Off
-opcache.enable = 1
-opcache.memory_consumption = 256
-opcache.validate_timestamps = 0
-EOF
+COPY app.prod.ini /usr/local/etc/php/conf.d/app.ini
 
 ENV PHP_FPM_PM_MAX_CHILDREN=20 \
     PHP_FPM_PM_START_SERVERS=5 \
