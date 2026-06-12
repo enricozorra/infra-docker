@@ -16,15 +16,21 @@ Docker image definitions for production and local use. Images are pushed to GHCR
 ## Structure
 
 - `php/<version>/Dockerfile` — multi-stage build: `base` → `dev` / `prod`
-- `.github/workflows/build.yml` — builds and pushes only the `prod` stage on tag push
+- `.github/workflows/build.yml` — builds and pushes both the `prod` and `dev` stages on tag push
+- Config files (`*.ini`, `www.conf.template`, `docker-entrypoint.sh`) live alongside the Dockerfile and are `COPY`-ed in
+  - `app.prod.ini` — `display_errors` off, OPcache tuned for prod (`validate_timestamps=0`, raised buffers, realpath cache)
+  - `app.dev.ini` — `display_errors` on, OPcache off (immediate code reload); `xdebug.ini` loads Xdebug
 
 ## Conventions
 
 - Image naming: `ghcr.io/<owner>/php-symfony:<php-version>`
 - Versioning: git tags (`v1.0.0`) → image tags (`8.2-1.0.0` + `8.2` as latest)
-- PHP-FPM config is generated at container startup via `envsubst` from a template embedded in the Dockerfile
-- Dev stage is not pushed to GHCR — built locally with `--target dev`
+- PHP-FPM config is generated at container startup via `envsubst` from the `www.conf.template` file
+- Both stages are pushed to GHCR: prod as `<php>` / `<php>-<ver>`, dev as `<php>-dev` / `<php>-<ver>-dev`
+- Projects extend the published images: build assets with the `-dev` image, ship from the prod image (multi-stage)
 - Adding a new PHP version: create `php/<version>/`, copy the Dockerfile, update the matrix in `build.yml`
+- Extensions baseline (added on top of what the official `php-fpm-alpine` base already bundles): `pdo_pgsql` + `intl` in `base`; Node/npm + Xdebug only in `dev`
+- Adding a core extension: `apk add` the runtime lib, add the `-dev` lib as a `--virtual .build-deps`, `docker-php-ext-install` it, then `apk del .build-deps`. Third-party extensions (e.g. Xdebug) go via PIE, not `docker-php-ext-install`
 
 ## FPM env vars (prod defaults for 2GB RAM)
 
