@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── STAGE 1: base ─────────────────────────────────────────
-FROM php:8.5-fpm-alpine3.24 AS base
+FROM php:8.5.12-fpm-alpine3.24 AS base
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/bin/composer
 
